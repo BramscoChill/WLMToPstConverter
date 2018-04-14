@@ -70,6 +70,7 @@ namespace WLMToPst
             }
 
             conversionThread = new Thread(BeginConversion) { Name = "MainConversionThread" };
+            CheckConvertButtonEnabled();
             conversionThread.Start();
         }
 
@@ -82,7 +83,12 @@ namespace WLMToPst
             generator.CreatePSTFromWindowsLiveMailFolder(tbOutputFile.Text, tbInputFolder.Text);
             if (InvokeRequired)
             {
-                this.Invoke(new Action(() => { MessageBox.Show(this, "Finished!"); }));
+                this.Invoke(new Action(() =>
+                {
+                    MessageBox.Show(this, "Finished!");
+                    conversionThread = null;
+                    CheckConvertButtonEnabled();
+                }));
             }
         }
         private void UpdateConvertionThreadProgress(float i, float total)
@@ -116,7 +122,7 @@ namespace WLMToPst
                 inputDirValid = Directory.Exists(tbInputFolder.Text);
                 outputFileValid = Directory.Exists(new FileInfo(tbOutputFile.Text).Directory.FullName) && string.IsNullOrEmpty(fileName) == false && string.IsNullOrEmpty(fileExtension) == false;
             } catch{}
-            bnConvert.Enabled = inputDirValid && outputFileValid;
+            bnConvert.Enabled = conversionThread == null && inputDirValid && outputFileValid;
         }
 
     }
