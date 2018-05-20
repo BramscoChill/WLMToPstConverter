@@ -28,10 +28,6 @@ namespace WLMToPst
             CheckConvertButtonEnabled();
 
             generator = new PSTGenerator();
-
-            //TESTING
-            tbInputFolder.Text = @"C:\_Data_\WLMToPst\_TestMails_\Kpnmail (MH ab2";
-            tbOutputFile.Text = @"C:\_Data_\WLMToPst\output.pst";
         }
 
         private void LogException(Exception ex)
