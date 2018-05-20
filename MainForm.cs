@@ -2,9 +2,11 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,17 +16,38 @@ namespace WLMToPst
 {
     public partial class MainForm : Form
     {
+        public delegate void CatchExceptionDelegate(Exception ex);
+        
         private PSTGenerator generator;
         private Thread conversionThread;
 
         public MainForm()
         {
             InitializeComponent();
+
             CheckConvertButtonEnabled();
 
             generator = new PSTGenerator();
+
+            //TESTING
+            tbInputFolder.Text = @"C:\_Data_\WLMToPst\_TestMails_\Kpnmail (MH ab2";
+            tbOutputFile.Text = @"C:\_Data_\WLMToPst\output.pst";
         }
 
+        private void LogException(Exception ex)
+        {
+            string simpleErrorMessage = $"FirstChanceException event raised in {AppDomain.CurrentDomain.FriendlyName}: {ex.Message}";
+            string fullErrorMessage = simpleErrorMessage + "\r\n\r\n" + Utils.LogExceptionString(ex);
+            Console.WriteLine(fullErrorMessage);
+            Trace.WriteLine(fullErrorMessage);
+            Trace.Flush(); // Flush the output.
+
+            if (ex is System.Runtime.InteropServices.COMException)
+            {
+                MessageBox.Show("Redemption could not be loaded, please install outlook and try again!", "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            MessageBox.Show(fullErrorMessage, "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
         private void btSelectInputFolder_Click(object sender, EventArgs e)
         {
             using (var wldDirBrowser = new FolderBrowserDialog())
@@ -70,25 +93,35 @@ namespace WLMToPst
             }
 
             conversionThread = new Thread(BeginConversion) { Name = "MainConversionThread" };
+            
             CheckConvertButtonEnabled();
             conversionThread.Start();
         }
 
         private void BeginConversion()
         {
-            string outputPstFullPath = Path.Combine(Directory.GetCurrentDirectory(), "testpst_" + new Random(Utils.ToUnixTimeInt(DateTime.Now)).Next(100, 1000) + ".pst");
-            generator = new PSTGenerator();
-            generator.UpdateConvertionThreadProgressHandler += UpdateConvertionThreadProgress;
-            //generator.CreatePSTFromWindowsLiveMailFolder(outputPstFullPath, @"f:\_Backups_\Tiny\Users\Gebruiker\Windows Live Mail\Kpnmail (MH ab2\");
-            generator.CreatePSTFromWindowsLiveMailFolder(tbOutputFile.Text, tbInputFolder.Text);
-            if (InvokeRequired)
+            try
             {
-                this.Invoke(new Action(() =>
+                string outputPstFullPath = Path.Combine(Directory.GetCurrentDirectory(), "testpst_" + new Random(Utils.ToUnixTimeInt(DateTime.Now)).Next(100, 1000) + ".pst");
+                generator = new PSTGenerator();
+                generator.UpdateConvertionThreadProgressHandler += UpdateConvertionThreadProgress;
+                //generator.CreatePSTFromWindowsLiveMailFolder(outputPstFullPath, @"f:\_Backups_\Tiny\Users\Gebruiker\Windows Live Mail\Kpnmail (MH ab2\");
+                generator.CreatePSTFromWindowsLiveMailFolder(tbOutputFile.Text, tbInputFolder.Text);
+                if (InvokeRequired)
                 {
-                    MessageBox.Show(this, "Finished!");
-                    conversionThread = null;
-                    CheckConvertButtonEnabled();
-                }));
+                    this.Invoke(new Action(() =>
+                    {
+                        MessageBox.Show(this, "Finished!");
+                        conversionThread = null;
+                        CheckConvertButtonEnabled();
+                    }));
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Invoke(new CatchExceptionDelegate(this.LogException), ex);
+                conversionThread = null;
+                CheckConvertButtonEnabled();
             }
         }
         private void UpdateConvertionThreadProgress(float i, float total)

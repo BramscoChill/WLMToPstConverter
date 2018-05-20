@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text;
 using System.IO;
 using System.Threading;
@@ -199,6 +200,7 @@ namespace WLMToPst
                 //Thread.CurrentThread.ApartmentState = ApartmentState.STA;
 
                 object res = null;
+                Trace.WriteLine($"starting NewRedemptionObject: {guid.ToString()}");
 
                 lock (_criticalSection)
                 {
@@ -206,8 +208,16 @@ namespace WLMToPst
                     if (_redemptionDllHandle.Equals(IntPtr.Zero))
                     {
                         string dllPath;
-                        if (IntPtr.Size == 8) dllPath = DllLocation64Bit;
-                        else dllPath = DllLocation32Bit;
+                        if (IntPtr.Size == 8)
+                        {
+                            dllPath = DllLocation64Bit;
+                            Trace.WriteLine($"DllLocation64Bit: '{DllLocation64Bit}'");
+                        }
+                        else
+                        {
+                            dllPath = DllLocation32Bit;
+                            Trace.WriteLine($"DllLocation32Bit: '{DllLocation32Bit}'");
+                        }
                         _redemptionDllHandle = Win32NativeMethods.LoadLibraryW(dllPath);
                         if (_redemptionDllHandle.Equals(IntPtr.Zero))
                             //throw new Exception(string.Format("Could not load '{0}'\nMake sure the dll exists.", dllPath));
@@ -219,22 +229,37 @@ namespace WLMToPst
                         _dllGetClassObject =
                             (DllGetClassObject)
                             Marshal.GetDelegateForFunctionPointer(_dllGetClassObjectPtr, typeof(DllGetClassObject));
+                        Trace.WriteLine($"_dllGetClassObject is loaded!: '{_dllGetClassObject.ToString()}'");
+                    } else {
+                        Trace.WriteLine($"_redemptionDllHandle.Equals(IntPtr.Zero) is NOT");
                     }
 
                     Object unk;
                     int hr = _dllGetClassObject(ref guid, ref IID_IClassFactory, out unk);
-                    if (hr != 0) throw new Exception("DllGetClassObject failed with error code 0x" + hr.ToString("x8"));
+                    Trace.WriteLine($"hr: {hr.ToString()}");
+                    if (hr != 0)
+                    {
+                        throw new Exception("DllGetClassObject failed with error code 0x" + hr.ToString("x8"));
+                    }
                     ClassFactory = unk as IClassFactory;
-                    ClassFactory.CreateInstance(null, ref IID_IUnknown, out res);
-
+                    Trace.WriteLine($"ClassFactory: {ClassFactory.ToString()}");
+                    Trace.WriteLine($"IID_IUnknown: {IID_IUnknown.ToString()}");
+                    ClassFactory.CreateInstance(null, ref IID_IUnknown, out res); //stuck here
+                    Trace.WriteLine($"ClassFactory.CreateInstance created: {res.ToString()}");
                     //If the same class factory is returned as the one still
                     //referenced by .Net, the call will be marshalled to the original thread
                     //where that class factory was retrieved first.
                     //Make .Net forget these objects
                     Marshal.ReleaseComObject(unk);
+                    Trace.WriteLine($"Marshal.ReleaseComObject(unk);");
                     Marshal.ReleaseComObject(ClassFactory);
+                    Trace.WriteLine($"Marshal.ReleaseComObject(ClassFactory);");
+
+                    Trace.WriteLine($"seems all loaded good: {IID_IUnknown.ToString()}");
                 } //lock
 
+                
+                Trace.Flush(); // Flush the output.
                 return (res as IUnknown);
             }
 
